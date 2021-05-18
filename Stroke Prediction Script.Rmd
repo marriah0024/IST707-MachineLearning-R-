@@ -1,0 +1,275 @@
+---
+title: "Stroke_Prediction"
+author: "Marriah Lewis and Glory Onyeugbo"
+date: "5/10/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Libraries
+Loading the libraries we a going to use on this project.
+
+```{r}
+library(plyr)
+library(dplyr)
+library(grid)
+library(tm)
+library(RColorBrewer)
+library(ggplot2)
+library(reshape)
+library(corrplot)
+library(forcats)
+```
+
+# Reading the Stroke Data
+
+Used the read.csv function to call in the stroke data downloaded from Kaggle.
+
+```{r}
+# Set the working directory.
+setwd("C:\\Users\\17708\\OneDrive\\Desktop\\IST 707 Project")
+# Load the dataset.
+stroke.df <- read.csv("Stroke Data.csv")
+# Print the first 5 instances of the data.
+head(stroke.df[1:5])
+```
+
+Read the structure.
+
+```{r}
+str(stroke.df) 
+#5110 obs. of  12 variables
+```
+
+# Data Cleaning
+```{r}
+# Assign the data frame to a new data set as to not comprimise the integrity of the original
+stroke_pred <- stroke.df
+
+# remove the id and bmi columns since they have no importance to the ultimate goal of this project.
+stroke_pred <- stroke_pred[,-c(1,10)]
+
+colnames(stroke_pred)
+# the bmi columns has been reomoved
+```
+Remove Missing Values and Duplicates
+
+```{r}
+#check for missing values 
+(sum(is.na(stroke_pred)))
+
+#check for duplicates 
+nrow(stroke_pred[duplicated(stroke_pred),]) #there are no duplicates 
+#Just to make sure there are no duplicates 
+stroke_prediction <- stroke_pred[!duplicated(stroke_pred),]
+```
+
+Data Conversions
+```{r}
+#check for missing values 
+# Convert nominal values to factors (hypertension, heart_disease, stroke)
+stroke_prediction$gender          <- factor(stroke_prediction$gender)
+
+stroke_prediction$hypertension    <- factor(stroke_prediction$hypertension)
+
+stroke_prediction$heart_disease   <- factor(stroke_prediction$heart_disease)
+
+stroke_prediction$ever_married    <- factor(stroke_prediction$ever_married)
+
+stroke_prediction$work_type       <- factor(stroke_prediction$work_type)
+
+stroke_prediction$Residence_type  <- as.factor(stroke_prediction$Residence_type)
+
+stroke_prediction$smoking_status  <- factor(stroke_prediction$smoking_status)
+
+stroke_prediction$stroke          <- factor(stroke_prediction$stroke)
+
+# Discetize Age
+(youngest_stroke <- min(stroke_prediction$age))
+(oldest_stroke  <- max(stroke_prediction$age))
+stroke_prediction$age_group <- cut(stroke_prediction$age, breaks = c(0,10,20,30,40,50,60,70,80,90),
+                    labels=c("child","teens","twenties","thirties","forties","fifties","sixties", "seventies", "eighties"))
+
+# Rename residence colomn name to fit the structure.
+names(stroke_prediction)[names(stroke_prediction) == "Residence_type"] <- "residence_type"
+
+# View The Data Structure
+str(stroke_prediction)
+```
+Create a barplot
+```{r}
+b <- table(stroke_prediction$age, stroke_prediction$stroke)
+b
+barplot(b, main = "Stroke Risk across All Ages", beside = TRUE, col= brewer.pal(7, "Spectral"),legend.text = rownames((b)),args.legend=list(x="topright",bty="s"))
+```
+
+# EDA
+```{r}
+# How many people have actually had a stroke?
+sum(stroke_prediction$stroke == 1)
+sum(stroke_prediction$stroke == 0)
+
+# What are the ages of people who suffered
+tapply(stroke_prediction$stroke == 1, stroke_prediction$age_group, sum)
+tapply(stroke_prediction$stroke == 0, stroke_prediction$age_group, sum)
+
+# Which gender suffered from strokes the most.
+tapply(stroke_prediction$stroke == 1, stroke_prediction$gender, sum)
+tapply(stroke_prediction$stroke == 0, stroke_prediction$gender, sum)
+# Majority are females
+
+# Do strokes tend to happen to people with a prior heart condition.
+tapply(stroke_prediction$stroke == 1, stroke_prediction$heart_disease, sum)
+tapply(stroke_prediction$stroke == 0, stroke_prediction$heart_disease, sum)
+# Majority of people who suffered from a stroke had no prior heart disease.
+
+# Does marital status have anything to do with strokes.
+tapply(stroke_prediction$stroke == 1, stroke_prediction$ever_married, sum)
+tapply(stroke_prediction$stroke == 0, stroke_prediction$ever_married, sum)
+# An overwhelming amount of people who has a stroke were married
+
+# Does marital status have anything to do with strokes.
+tapply(stroke_prediction$stroke == 1, stroke_prediction$hypertension, sum)
+tapply(stroke_prediction$stroke == 0, stroke_prediction$hypertension, sum)
+# Most of them did not have hypertension.
+
+# iS the likehood of stroke impacted by smoking status
+tapply(stroke_prediction$stroke == 1, stroke_prediction$smoking_status, sum)
+tapply(stroke_prediction$stroke == 0, stroke_prediction$smoking_status, sum)
+# There are more non-smokers and former smokers who had strokes that people that currently smoke and a couple oof unkowns. 
+
+# Residence
+# Does marital status have anything to do with strokes.
+tapply(stroke_prediction$stroke == 1, stroke_prediction$residence_type, sum)
+tapply(stroke_prediction$stroke == 0, stroke_prediction$residence_type, sum)
+# Urban is more than rural
+
+# Work Type
+tapply(stroke_prediction$stroke == 1, stroke_prediction$work_type, sum)
+tapply(stroke_prediction$stroke == 0, stroke_prediction$work_type, sum)
+
+# Which gender tend to have the most cases of heart disease?
+tapply(stroke_prediction$heart_disease == 1, stroke_prediction$gender, sum)
+
+# Which age group has the most cases of heart disease?
+tapply(stroke_prediction$heart_disease == 1, stroke_prediction$age_group, sum)
+
+# Which gender smoke the most?
+tapply(stroke_prediction$smoking_status == "smokes", stroke_prediction$gender, sum)
+
+# Which gender had the most former smokers.
+tapply(stroke_prediction$smoking_status == "formerly smoked", stroke_prediction$gender, sum)
+
+```
+
+
+
+Visualizations
+```{r}
+age_count <- tally(group_by(stroke_prediction, age_group, stroke))
+
+stroke_count <- count(stroke_prediction, stroke)
+ggplot(stroke_count, aes(y = n)) + geom_bar(stat = "identity", aes(x = stroke, fill = stroke)) + labs(x = 'Stroke', y = 'Count') + ggtitle('Count by Stroke')
+
+#########################################################################################
+age_group_count <- count(stroke_prediction, age_group)
+ggplot(age_group_count, aes(y = n)) + geom_bar(stat = "identity", aes(x = age_group, fill = age_group)) + labs(x = 'Age Group', y = 'Count') + ggtitle('Count by Age Group')
+
+#########################################################################################
+gender_count <- count(stroke_prediction, gender)
+ggplot(gender_count, aes(y = n)) + geom_bar(stat = "identity", aes(x = gender, fill = gender)) + labs(x = 'Gender', y = 'Count') + ggtitle('Count by Gender')
+
+#########################################################################################
+hypertension_count <- count(stroke_prediction, hypertension)
+ggplot(hypertension_count, aes(y = n)) + geom_bar(stat = "identity", aes(x = hypertension, fill = hypertension)) + labs(x = 'Hypertension', y = 'Count') + ggtitle('Count by Hypertension')
+
+#########################################################################################
+hd_count <- count(stroke_prediction, heart_disease)
+ggplot(hd_count, aes(y = n)) + geom_bar(stat = "identity", aes(x = heart_disease, fill = heart_disease)) + labs(x = 'Heart Disease', y = 'Count') + ggtitle('Count by Heart Disease')
+
+#########################################################################################
+wt_count <- count(stroke_prediction, work_type)
+ggplot(wt_count, aes(y = n)) + geom_bar(stat = "identity", aes(x = work_type, fill = work_type)) + labs(x = 'Work Type', y = 'Count') + ggtitle('Count by Work Type')
+
+#########################################################################################
+marriage_count <- count(stroke_prediction, ever_married)
+ggplot(marriage_count, aes(y = n)) + geom_bar(stat = "identity", aes(x = ever_married, fill = ever_married)) + labs(x = 'Married', y = 'Count') + ggtitle('Count by Marriage')
+
+#########################################################################################
+ss_count <- count(stroke_prediction, smoking_status)
+ggplot(ss_count, aes(y = n)) + geom_bar(stat = "identity", aes(x = smoking_status, fill = smoking_status)) + labs(x = 'Smoking Status', y = 'Count') + ggtitle('Count by Smoking Status')
+
+#########################################################################################
+residence_count <- count(stroke_prediction, residence_type)
+ggplot(residence_count, aes(y = n)) + geom_bar(stat = "identity", aes(x = residence_type, fill = residence_type)) + labs(x = 'Residence', y = 'Count') + ggtitle('Count by Residence')
+```
+
+
+Visualization
+```{r}
+
+#########################################################################################
+ggplot(stroke_prediction, aes(x = gender, y = stroke, fill = gender)) + geom_bar(stat = 'identity') + facet_wrap(~stroke) + labs(x = 'Gender', y = 'Count') + ggtitle('Stroke Count by Gender')
+
+#########################################################################################
+ggplot(stroke_prediction, aes(x = age_group, y = stroke, fill = age_group)) + geom_bar(stat = 'identity') + facet_wrap(~stroke) + labs(x = 'Age Group', y = 'Count') + ggtitle('Stroke Count by Age') + theme(axis.text.x = element_text(angle = 90))
+
+#########################################################################################
+ggplot(stroke_prediction, aes(x = smoking_status, y = stroke, fill = smoking_status)) + geom_bar(stat = 'identity') + facet_wrap(~stroke) + labs(x = 'Smoking Status', y = 'Count') + ggtitle('Stroke Count by Smoking Status') + theme(axis.text.x = element_text(angle = 90))
+
+#########################################################################################
+ggplot(stroke_prediction, aes(x = hypertension, y = stroke, fill = hypertension)) + geom_bar(stat = 'identity') + facet_wrap(~stroke) + labs(x = 'Hypertension', y = 'Count') + ggtitle('Stroke Count by Hypertension')
+
+#########################################################################################
+ggplot(stroke_prediction, aes(x = heart_disease, y = stroke, fill = heart_disease)) + geom_bar(stat = 'identity') + facet_wrap(~stroke) + labs(x = 'Heart Disease', y = 'Count') + ggtitle('Stroke Count by Heart Disease')
+
+#########################################################################################
+ggplot(stroke_prediction, aes(x = work_type, y = stroke, fill = work_type)) + geom_bar(stat = 'identity') + facet_wrap(~stroke) + labs(x = 'Work Type', y = 'Count') + ggtitle('Stroke Count by Work Type') + theme(axis.text.x = element_text(angle = 90))
+
+
+#########################################################################################
+ggplot(stroke_prediction, aes(x = age, y = avg_glucose_level, color = stroke)) + geom_point() + labs(x = 'Age', y = 'Avg Glucose') + ggtitle('Average Glucose by Age')
+
+#########################################################################################
+ggplot(stroke_prediction, aes(x = age, y = stroke, color = work_type)) + geom_point() + labs(x = 'Age', y = 'Stroke') + ggtitle('Work Type by Age')
+#########################################################################################
+
+```
+
+Correlation Analysis between numeric variables
+```{r}
+# Change the int variables to numeric
+hypertension   <- as.numeric(stroke.df$hypertension)
+heart_disease  <- as.numeric(stroke.df$heart_disease)
+stroke         <- as.numeric(stroke.df$stroke)
+age            <- stroke.df$age
+avg_glucose    <- stroke.df$avg_glucose_level
+
+# Recoding some variables
+gender <- as.numeric(recode(stroke.df$gender, "Female" = 0, "Male" = 1, "Other" = 2))
+
+ever_married <- as.numeric(recode(stroke.df$ever_married, "No" = 0, "Yes" = 1))
+
+work_type <- as.numeric(recode(stroke.df$work_type, "Private" = 0, "Self-employed" = 1, "Govt_job" = 2, "Never_worked" = 3, "children" = 4))
+
+smoking_status <- as.numeric(recode(stroke.df$smoking_status, "formerly smoked" = 1, "never smoked" = 1, "smokes" = 2, "Unknown" = 3))
+
+# Put all numeric vectors into a data frame
+stroke_num <- data.frame(gender, age, smoking_status, ever_married, work_type, heart_disease, hypertension, avg_glucose, stroke)
+
+# Create a correlation matrix
+stroke_corr <- round(cor(stroke_num), 2)
+melted_stroke <- melt(stroke_corr)
+
+head(melted_stroke)
+```
+
+Correlation Plot
+```{r echo=TRUE}
+# Create the correlation plot
+ggplot(data = melted_stroke, aes(x = X1, y = X2, fill = value, label = value)) + geom_tile() + scale_fill_gradient2(low = "#0C6291", high = "#A63446", mid = "#FBFEF9") + geom_text(aes(X2, X1, label = value), color = "black", size = 4) + labs(fill = "Pearson's\nCorrelation") + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Correlations in Stroke Data")
+
+```
